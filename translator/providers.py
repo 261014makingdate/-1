@@ -1,4 +1,5 @@
 import os
+from html.parser import HTMLParser
 import ssl
 from urllib.parse import urlparse
 from urllib.request import getproxies, proxy_bypass
@@ -33,11 +34,36 @@ def _windows_connection_options(host: str) -> dict:
     return options
 
 
+class _GoogleResultParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.depth = 0
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if self.depth:
+            if tag == 'br':
+                self.parts.append('\n')
+            elif tag not in ('img', 'hr', 'input', 'meta', 'link', 'wbr'):
+                self.depth += 1
+        elif tag == 'div' and 'result-container' in dict(attrs).get('class', '').split():
+            self.depth = 1
+
+    def handle_endtag(self, tag):
+        if self.depth:
+            self.depth -= 1
+
+    def handle_data(self, data):
+        if self.depth:
+            self.parts.append(data)
+
+
 class GoogleWebProvider:
     """Google web adapter with native Windows trust and a backup endpoint."""
     _ENDPOINTS = (
         'https://translate.googleapis.com/translate_a/single',
         'https://translate.google.com/translate_a/single',
+        'https://translate.google.com/m',
     )
 
     @staticmethod
@@ -85,22 +111,38 @@ class GoogleWebProvider:
     def translate(self, text: str, target: str) -> tuple[str, str]:
         failures = []
         last_error = None
+        api_limited = False
         for endpoint in self._ENDPOINTS:
+            webpage = endpoint.endswith('/m')
+            if api_limited and not webpage:
+                continue
             try:
                 options = _windows_connection_options(urlparse(endpoint).hostname)
+                params = [('sl', 'ko'), ('tl', target), ('q', text)]
+                if not webpage:
+                    params += [('client', 'gtx'), ('dt', 't'), ('dt', 'rm'), ('dj', '1')]
                 response = httpx.get(
                     endpoint,
-                    params=[('client', 'gtx'), ('sl', 'ko'), ('tl', target),
-                            ('dt', 't'), ('dt', 'rm'), ('dj', '1'), ('q', text)],
+                    params=params,
                     timeout=httpx.Timeout(12, connect=6),
                     follow_redirects=True,
-                    headers={'User-Agent': 'Malmoa/0.1.1', 'Accept': 'application/json'},
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Malmoa/0.1.3',
+                             'Accept': 'text/html' if webpage else 'application/json'},
                     **options,
                 )
                 response.raise_for_status()
+                if webpage:
+                    parser = _GoogleResultParser()
+                    parser.feed(response.text)
+                    translated = ''.join(parser.parts).strip()
+                    if not translated:
+                        raise ValueError('Google web translation was unavailable')
+                    return translated, ''
                 return self._parse(response.json())
             except (httpx.HTTPError, ValueError, TypeError, IndexError, OSError) as error:
                 last_error = error
+                if isinstance(error, httpx.HTTPStatusError) and error.response.status_code == 429:
+                    api_limited = True
                 # Do not expose request URLs, input text or proxy credentials.
                 failures.append(self._failure(error))
         messages = list(dict.fromkeys(failures))

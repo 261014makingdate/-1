@@ -36,6 +36,11 @@ jobs:
         run: |
           .venv-windows\Scripts\python -m pytest -q
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+      - name: Check real Thai translation before building
+        shell: pwsh
+        run: |
+          .venv-windows\Scripts\python -c "from translator.core import Translator, LANGUAGES; from translator.providers import GoogleWebProvider, RomanizationProvider; r = Translator(GoogleWebProvider(), RomanizationProvider()).translate('안녕하세요. 만나서 반갑습니다.', LANGUAGES[3]); assert r.text and r.pronunciation; print('Thai live translation passed')"
+          if ($LASTEXITCODE -ne 0) { throw 'Thai source translation failed' }
       - name: Build and verify executable
         shell: pwsh
         run: ./packaging/build-windows.ps1

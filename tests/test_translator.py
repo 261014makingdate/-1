@@ -108,3 +108,23 @@ def test_invalid_response_is_not_connectivity_error(monkeypatch):
 
 def test_legacy_null_segments_are_ignored():
     assert GoogleWebProvider._parse([[None, ['Hello'], [None, None, 'hello', 'annyeong']]]) == ('Hello', 'hello')
+
+
+def test_google_webpage_fallback_after_api_rate_limit(monkeypatch):
+    calls = []
+    def request(url, **kwargs):
+        calls.append(url)
+        if url.endswith('/m'):
+            return httpx.Response(200, text='<div class="result-container">สวัสดี <span>โลก</span><br>!</div>', request=httpx.Request('GET', url))
+        return httpx.Response(429, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', request)
+    assert GoogleWebProvider().translate('안녕', 'th') == ('สวัสดี โลก\n!', '')
+    assert len(calls) == 2
+
+
+def test_google_webpage_missing_result_is_rejected(monkeypatch):
+    monkeypatch.setattr(GoogleWebProvider, '_ENDPOINTS', ('https://translate.google.com/m',))
+    response = httpx.Response(200, text='<html>Service unavailable</html>', request=httpx.Request('GET', 'https://example.com'))
+    monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
+    with pytest.raises(TranslationError, match='RESPONSE'):
+        GoogleWebProvider().translate('안녕', 'en')
