@@ -54,6 +54,29 @@ jobs:
           if (-not (Test-Path $report)) { throw 'Live translation report is missing' }
           $result = Get-Content -Raw -Encoding UTF8 $report | ConvertFrom-Json
           if ($result.status -ne 'passed') { throw 'Live translation checks did not pass' }
+      - name: Preserve failure diagnostics for investigation
+        if: failure()
+        shell: pwsh
+        env:
+          DIAGNOSTIC_BRANCH: diagnostics/${{ github.run_id }}
+        run: |
+          $report = Join-Path (Get-Location) 'dist/live-test.json'
+          if (-not (Test-Path $report)) {
+            '{"status":"failed-before-report","mode":"packaged"}' | Set-Content -Encoding UTF8 $report
+          }
+          .venv-windows\Scripts\python desktop.py --live-test dist/source-live-test.json
+          $diagnostic = @{
+            packaged = (Get-Content -Raw -Encoding UTF8 $report | ConvertFrom-Json)
+            source = (Get-Content -Raw -Encoding UTF8 dist/source-live-test.json | ConvertFrom-Json)
+          } | ConvertTo-Json -Depth 10
+          $diagnostic | Set-Content -Encoding UTF8 packaging/live-diagnostics.json
+          git checkout -b "$env:DIAGNOSTIC_BRANCH"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packaging/live-diagnostics.json
+          git commit -m 'Record live translation diagnostic results for fixed public test sentences'
+          git push origin "HEAD:refs/heads/$env:DIAGNOSTIC_BRANCH"
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic preservation failed' }
       - name: Prepare downloadable ZIP and checksum
         shell: pwsh
         run: |
