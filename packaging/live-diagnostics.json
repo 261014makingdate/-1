@@ -1,0 +1,76 @@
+{
+  "source": {
+    "mode": "live",
+    "checks": [
+      {
+        "language": "zh-CN",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "ja",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "en",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "th",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "lo",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "ru",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      }
+    ],
+    "live_translation_verified": false,
+    "status": "failed"
+  },
+  "packaged": {
+    "mode": "live",
+    "checks": [
+      {
+        "language": "zh-CN",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "ja",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "en",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "th",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "lo",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      },
+      {
+        "language": "ru",
+        "status": "failed",
+        "error": "번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)"
+      }
+    ],
+    "live_translation_verified": false,
+    "status": "failed"
+  }
+}
