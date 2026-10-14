@@ -54,3 +54,26 @@ def run(report_path: str) -> int:
             window.close()
     Path(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     return exit_code
+
+
+def run_live(report_path: str) -> int:
+    """Exercise all six languages through the packaged network adapter."""
+    import re
+    from .providers import GoogleWebProvider
+    translator = Translator(GoogleWebProvider(), RomanizationProvider())
+    scripts = [r'[\u4e00-\u9fff]', r'[\u3040-\u30ff]', r'[A-Za-z]',
+               r'[\u0e00-\u0e7f]', r'[\u0e80-\u0eff]', r'[\u0400-\u04ff]']
+    report = {'mode': 'live', 'checks': [], 'live_translation_verified': True}
+    for language, script in zip(LANGUAGES, scripts):
+        try:
+            result = translator.translate('안녕하세요. 만나서 반갑습니다.', language)
+            if not re.search(script, result.text) or not result.pronunciation.strip():
+                raise RuntimeError('Translation or pronunciation is missing')
+            report['checks'].append({'language': language.code, 'status': 'passed',
+                                     'translation': result.text, 'pronunciation': result.pronunciation})
+        except Exception as error:
+            report['live_translation_verified'] = False
+            report['checks'].append({'language': language.code, 'status': 'failed', 'error': str(error)})
+    report['status'] = 'passed' if report['live_translation_verified'] else 'failed'
+    Path(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    return 0 if report['live_translation_verified'] else 1

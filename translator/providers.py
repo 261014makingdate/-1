@@ -1,3 +1,9 @@
+import os
+import ssl
+from urllib.parse import urlparse
+from urllib.request import getproxies, proxy_bypass
+
+import certifi
 import eng_to_ipa
 import httpx
 from pypinyin import lazy_pinyin, Style
@@ -7,26 +13,98 @@ from unidecode import unidecode
 from .core import TranslationError
 
 
+def _windows_connection_options(host: str) -> dict:
+    """Use Windows trust roots and manually configured system proxies."""
+    if os.name != 'nt':
+        return {}
+    import truststore
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.load_verify_locations(certifi.where())
+    # Respect an explicitly configured trusted CA bundle without disabling TLS.
+    extra_ca = os.environ.get('SSL_CERT_FILE')
+    if extra_ca:
+        context.load_verify_locations(extra_ca)
+    options = {'verify': context}
+    if not proxy_bypass(host):
+        proxies = getproxies()
+        proxy = proxies.get('https') or proxies.get('http')
+        if proxy:
+            options['proxy'] = proxy
+    return options
+
+
 class GoogleWebProvider:
-    """Public web endpoint adapter, replaceable with an official API provider."""
+    """Google web adapter with native Windows trust and a backup endpoint."""
+    _ENDPOINTS = (
+        'https://translate.googleapis.com/translate_a/single',
+        'https://translate.google.com/translate_a/single',
+    )
+
+    @staticmethod
+    def _parse(data) -> tuple[str, str]:
+        if isinstance(data, dict):
+            sentences = data.get('sentences')
+            if not isinstance(sentences, list):
+                raise ValueError('Missing sentences')
+            translated = ''.join(s['trans'] for s in sentences
+                                 if isinstance(s, dict) and isinstance(s.get('trans'), str))
+            phonetic = ' '.join(s['translit'] for s in sentences
+                                if isinstance(s, dict) and isinstance(s.get('translit'), str))
+        elif isinstance(data, list) and data and isinstance(data[0], list):
+            # Legacy Google response: target pronunciation is index 2;
+            # index 3 is the Korean source pronunciation.
+            sentences = [s for s in data[0] if isinstance(s, list)]
+            translated = ''.join(s[0] for s in sentences if s and isinstance(s[0], str))
+            phonetic = ' '.join(s[2] for s in sentences
+                                if len(s) > 2 and isinstance(s[2], str))
+        else:
+            raise ValueError('Invalid translation response')
+        if not translated.strip():
+            raise ValueError('Empty translation')
+        return translated, phonetic
+
+    @staticmethod
+    def _failure(error: Exception) -> str:
+        if isinstance(error, httpx.HTTPStatusError):
+            status = error.response.status_code
+            if status == 429:
+                return '번역 요청이 일시적으로 제한됐습니다. 잠시 후 다시 시도해 주세요. (HTTP 429)'
+            return f'번역 서비스가 요청을 거절했습니다. (HTTP {status})'
+        if isinstance(error, httpx.TimeoutException):
+            return '번역 서버의 응답 시간이 초과됐습니다. 다시 시도해 주세요. (TIMEOUT)'
+        if isinstance(error, httpx.ProxyError):
+            return '프록시 서버 연결이 차단됐습니다. Windows의 프록시 설정을 확인해 주세요. (PROXY)'
+        if isinstance(error, httpx.ConnectError):
+            if 'certificate' in str(error).lower() or 'ssl' in str(error).lower():
+                return '보안 인증서를 확인하지 못했습니다. PC 날짜와 회사·학교의 인증서 설정을 확인해 주세요. (TLS)'
+            return '번역 서버에 연결하지 못했습니다. Google 번역 접속 및 방화벽 설정을 확인해 주세요. (CONNECT)'
+        if isinstance(error, httpx.HTTPError):
+            return '번역 서버와 통신 중 오류가 발생했습니다. (NETWORK)'
+        return '번역 응답을 읽지 못했습니다. 서비스의 응답 형식이 변경됐을 수 있습니다. (RESPONSE)'
+
     def translate(self, text: str, target: str) -> tuple[str, str]:
-        try:
-            response = httpx.get(
-                'https://translate.googleapis.com/translate_a/single',
-                params=[('client', 'gtx'), ('sl', 'ko'), ('tl', target),
-                        ('dt', 't'), ('dt', 'rm'), ('q', text)],
-                timeout=20,
-            )
-            response.raise_for_status()
-            data = response.json()
-            segments = data[0]
-            translated = ''.join(s[0] for s in segments if s and isinstance(s[0], str))
-            phonetic = ' '.join(s[3] for s in segments if len(s) > 3 and isinstance(s[3], str))
-            if not translated:
-                raise ValueError('Empty translation')
-            return translated, phonetic
-        except (httpx.HTTPError, ValueError, TypeError, IndexError) as error:
-            raise TranslationError('번역 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.') from error
+        failures = []
+        last_error = None
+        for endpoint in self._ENDPOINTS:
+            try:
+                options = _windows_connection_options(urlparse(endpoint).hostname)
+                response = httpx.get(
+                    endpoint,
+                    params=[('client', 'gtx'), ('sl', 'ko'), ('tl', target),
+                            ('dt', 't'), ('dt', 'rm'), ('dj', '1'), ('q', text)],
+                    timeout=httpx.Timeout(12, connect=6),
+                    follow_redirects=True,
+                    headers={'User-Agent': 'Malmoa/0.1.1', 'Accept': 'application/json'},
+                    **options,
+                )
+                response.raise_for_status()
+                return self._parse(response.json())
+            except (httpx.HTTPError, ValueError, TypeError, IndexError, OSError) as error:
+                last_error = error
+                # Do not expose request URLs, input text or proxy credentials.
+                failures.append(self._failure(error))
+        messages = list(dict.fromkeys(failures))
+        raise TranslationError(' / '.join(messages)) from last_error
 
 
 class RomanizationProvider:

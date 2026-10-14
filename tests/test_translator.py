@@ -41,7 +41,7 @@ def test_network_failure(monkeypatch):
 
 
 def test_response_parsing(monkeypatch):
-    data = [[['Hello', '안녕', None, None], [None, None, None, 'hello']]]
+    data = [[['Hello', '안녕', None, None], [None, None, 'hello', 'annyeong']]]
     response = httpx.Response(200, json=data, request=httpx.Request('GET', 'https://example.com'))
     monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
     assert GoogleWebProvider().translate('안녕', 'en') == ('Hello', 'hello')
@@ -62,3 +62,49 @@ def test_desktop_translation_flow():
     assert window.pronunciation.toPlainText() == 'nǐ hǎo'
     assert window.translate_button.isEnabled()
     window.close()
+
+
+def test_structured_target_pronunciation(monkeypatch):
+    data = {'sentences': [{'trans': 'สวัสดี'}, {'translit': 'sawasdee', 'src_translit': 'annyeong'}]}
+    response = httpx.Response(200, json=data, request=httpx.Request('GET', 'https://example.com'))
+    monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
+    assert GoogleWebProvider().translate('안녕', 'th') == ('สวัสดี', 'sawasdee')
+
+
+def test_backup_endpoint(monkeypatch):
+    calls = []
+    def request(url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            raise httpx.ConnectError('network unavailable')
+        return httpx.Response(200, json={'sentences': [{'trans': 'Hello'}]}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', request)
+    assert GoogleWebProvider().translate('안녕', 'en') == ('Hello', '')
+    assert len(calls) == 2
+
+
+def test_rate_limit_message(monkeypatch):
+    response = httpx.Response(429, request=httpx.Request('GET', 'https://example.com'))
+    monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
+    with pytest.raises(TranslationError, match='HTTP 429'):
+        GoogleWebProvider().translate('안녕', 'en')
+
+
+def test_tls_message_without_sensitive_details(monkeypatch):
+    def request(*a, **k):
+        raise httpx.ConnectError('CERTIFICATE_VERIFY_FAILED secret-user-input')
+    monkeypatch.setattr(httpx, 'get', request)
+    with pytest.raises(TranslationError, match='TLS') as error:
+        GoogleWebProvider().translate('안녕', 'en')
+    assert 'secret-user-input' not in str(error.value)
+
+
+def test_invalid_response_is_not_connectivity_error(monkeypatch):
+    response = httpx.Response(200, json={'unexpected': True}, request=httpx.Request('GET', 'https://example.com'))
+    monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
+    with pytest.raises(TranslationError, match='RESPONSE'):
+        GoogleWebProvider().translate('안녕', 'en')
+
+
+def test_legacy_null_segments_are_ignored():
+    assert GoogleWebProvider._parse([[None, ['Hello'], [None, None, 'hello', 'annyeong']]]) == ('Hello', 'hello')
