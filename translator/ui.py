@@ -55,7 +55,7 @@ class TranslatorWindow(QMainWindow):
         self.translate_button.clicked.connect(self.translate)
         controls.addWidget(self.translate_button)
         layout.addLayout(controls)
-        self.status = QLabel('인터넷 연결이 필요합니다. 입력 문장은 Google 번역 서버로 전송됩니다.')
+        self.status = QLabel('인터넷 연결이 필요합니다. 입력 문장은 Google 또는 보조 서비스 MyMemory로 전송됩니다. 무료 사용량 제한이 있습니다.')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addWidget(QLabel('번역 결과'))

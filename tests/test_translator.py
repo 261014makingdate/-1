@@ -128,3 +128,32 @@ def test_google_webpage_missing_result_is_rejected(monkeypatch):
     monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
     with pytest.raises(TranslationError, match='RESPONSE'):
         GoogleWebProvider().translate('안녕', 'en')
+
+
+def test_secondary_provider_after_google_failure():
+    from translator.providers import FallbackTranslationProvider
+    class Failed:
+        def translate(self, *args):
+            raise TranslationError('HTTP 429')
+    assert FallbackTranslationProvider([Failed(), Provider()]).translate('안녕', 'zh-CN') == ('你好', 'nǐ hǎo')
+
+
+def test_mymemory_result_and_query_limit(monkeypatch):
+    from translator.providers import MyMemoryProvider
+    calls = []
+    def request(url, **kwargs):
+        calls.append(kwargs['params']['q'])
+        return httpx.Response(200, json={'responseStatus': 200, 'responseData': {'translatedText': 'Hello &amp; welcome'}}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', request)
+    result, phonetic = MyMemoryProvider().translate('가' * 901, 'en')
+    assert [len(s) for s in calls] == [450, 450, 1]
+    assert result == '\n'.join(['Hello & welcome'] * 3)
+    assert phonetic == ''
+
+
+def test_mymemory_quota_is_not_translation(monkeypatch):
+    from translator.providers import MyMemoryProvider
+    response = httpx.Response(200, json={'responseStatus': 403, 'quotaFinished': True, 'responseData': {'translatedText': 'MYMEMORY WARNING'}}, request=httpx.Request('GET', 'https://example.com'))
+    monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
+    with pytest.raises(TranslationError, match='MYMEMORY LIMIT'):
+        MyMemoryProvider().translate('안녕', 'en')

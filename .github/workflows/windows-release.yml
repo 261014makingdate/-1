@@ -39,7 +39,7 @@ jobs:
       - name: Check real Thai translation before building
         shell: pwsh
         run: |
-          .venv-windows\Scripts\python -c "from translator.core import Translator, LANGUAGES; from translator.providers import GoogleWebProvider, RomanizationProvider; r = Translator(GoogleWebProvider(), RomanizationProvider()).translate('안녕하세요. 만나서 반갑습니다.', LANGUAGES[3]); assert r.text and r.pronunciation; print('Thai live translation passed')"
+          .venv-windows\Scripts\python -c "from translator.core import Translator, LANGUAGES; from translator.providers import GoogleWebProvider, RomanizationProvider, MyMemoryProvider, FallbackTranslationProvider; r = Translator(FallbackTranslationProvider([GoogleWebProvider(), MyMemoryProvider()]), RomanizationProvider()).translate('안녕하세요. 만나서 반갑습니다.', LANGUAGES[3]); assert r.text and r.pronunciation; print('Thai live translation passed')"
           if ($LASTEXITCODE -ne 0) { throw 'Thai source translation failed' }
       - name: Build and verify executable
         shell: pwsh
@@ -65,6 +65,7 @@ jobs:
         env:
           DIAGNOSTIC_BRANCH: diagnostics/${{ github.run_id }}
         run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
           $report = Join-Path (Get-Location) 'dist/live-test.json'
           if (-not (Test-Path $report)) {
             '{"status":"failed-before-report","mode":"packaged"}' | Set-Content -Encoding UTF8 $report

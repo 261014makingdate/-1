@@ -1,5 +1,6 @@
 import os
 from html.parser import HTMLParser
+from collections.abc import Sequence
 import ssl
 from urllib.parse import urlparse
 from urllib.request import getproxies, proxy_bypass
@@ -11,7 +12,7 @@ from pypinyin import lazy_pinyin, Style
 from pykakasi import kakasi
 from unidecode import unidecode
 
-from .core import TranslationError
+from .core import TranslationError, TranslationProvider
 
 
 def _windows_connection_options(host: str) -> dict:
@@ -161,3 +162,48 @@ class RomanizationProvider:
         if language == 'en':
             return eng_to_ipa.convert(text), '영어 국제음성기호(IPA)입니다. * 표시는 사전에 없는 단어입니다.'
         return unidecode(text), '간이 로마자 표기입니다. 실제 발음·성조와 차이가 있을 수 있습니다.'
+
+
+class MyMemoryProvider:
+    """Documented public MyMemory API; no key, with a free daily quota."""
+    def translate(self, text: str, target: str) -> tuple[str, str]:
+        from html import unescape
+        language = 'zh-CN' if target == 'zh-CN' else target
+        # The public API accepts at most 500 characters per query.
+        chunks = [text[start:start + 450] for start in range(0, len(text), 450)]
+        translations = []
+        for chunk in chunks:
+            try:
+                response = httpx.get(
+                    'https://api.mymemory.translated.net/get',
+                    params={'q': chunk, 'langpair': f'ko|{language}'},
+                    timeout=httpx.Timeout(12, connect=6),
+                    **_windows_connection_options('api.mymemory.translated.net'),
+                )
+                response.raise_for_status()
+                data = response.json()
+                if str(data.get('responseStatus')) != '200' or data.get('quotaFinished'):
+                    raise TranslationError('보조 번역 서비스의 사용량이 제한됐거나 지원하지 않는 요청입니다. (MYMEMORY LIMIT)')
+                translated = data.get('responseData', {}).get('translatedText')
+                if not isinstance(translated, str) or not translated.strip() or translated.upper().startswith('MYMEMORY WARNING'):
+                    raise TranslationError('보조 번역 서비스에서 결과를 받지 못했습니다. (MYMEMORY RESPONSE)')
+                translations.append(unescape(translated))
+            except (httpx.HTTPError, ValueError, TypeError, AttributeError, OSError) as error:
+                raise TranslationError('보조 번역 서비스: ' + GoogleWebProvider._failure(error)) from error
+        return '\n'.join(translations), ''
+
+
+class FallbackTranslationProvider:
+    def __init__(self, providers: Sequence[TranslationProvider]):
+        if not providers:
+            raise ValueError("At least one translation provider is required")
+        self._providers = tuple(providers)
+
+    def translate(self, text: str, target: str) -> tuple[str, str]:
+        failures = []
+        for provider in self._providers:
+            try:
+                return provider.translate(text, target)
+            except TranslationError as error:
+                failures.append(str(error))
+        raise TranslationError(' / '.join(dict.fromkeys(failures)))
