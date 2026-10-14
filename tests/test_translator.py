@@ -3,7 +3,8 @@ import httpx
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QEventLoop, QTimer
 from translator.core import Translator, TranslationError, LANGUAGES
-from translator.providers import GoogleWebProvider, RomanizationProvider
+from translator.providers import GoogleWebProvider
+from translator.pronunciation import KoreanPronunciationProvider
 from translator.ui import TranslatorWindow
 
 
@@ -15,18 +16,18 @@ class Provider:
 @pytest.mark.parametrize('text', ['', '  ', '가' * 3001])
 def test_input_validation(text):
     with pytest.raises(TranslationError):
-        Translator(Provider(), RomanizationProvider()).translate(text, LANGUAGES[0])
+        Translator(Provider(), KoreanPronunciationProvider()).translate(text, LANGUAGES[0])
 
 
-def test_service_pronunciation_preferred():
-    result = Translator(Provider(), RomanizationProvider()).translate('안녕', LANGUAGES[0])
+def test_service_romanization_is_displayed_in_hangul():
+    result = Translator(Provider(), KoreanPronunciationProvider()).translate('안녕', LANGUAGES[0])
     assert result.text == '你好'
-    assert result.pronunciation == 'nǐ hǎo'
+    assert result.pronunciation == '니 하오'
 
 
 @pytest.mark.parametrize('code,text', [('zh-CN', '你好'), ('ja', 'こんにちは'), ('en', 'hello'), ('th', 'สวัสดี'), ('lo', 'ສະບາຍດີ'), ('ru', 'Привет')])
 def test_pronunciation_fallback(code, text):
-    pronunciation, note = RomanizationProvider().pronounce(text, code)
+    pronunciation, note = KoreanPronunciationProvider().pronounce(text, code)
     assert pronunciation.strip()
     assert note
     assert pronunciation != text
@@ -49,7 +50,7 @@ def test_response_parsing(monkeypatch):
 
 def test_desktop_translation_flow():
     app = QApplication.instance() or QApplication([])
-    window = TranslatorWindow(Translator(Provider(), RomanizationProvider()))
+    window = TranslatorWindow(Translator(Provider(), KoreanPronunciationProvider()))
     window.show()
     window.input.setPlainText('안녕')
     window.translate()
@@ -59,7 +60,7 @@ def test_desktop_translation_flow():
     loop.exec()
     app.processEvents()
     assert window.output.toPlainText() == '你好'
-    assert window.pronunciation.toPlainText() == 'nǐ hǎo'
+    assert window.pronunciation.toPlainText() == '니 하오'
     assert window.translate_button.isEnabled()
     window.close()
 

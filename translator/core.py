@@ -31,7 +31,7 @@ class TranslationProvider(Protocol):
 
 
 class PronunciationProvider(Protocol):
-    def pronounce(self, text: str, language: str) -> tuple[str, str]: ...
+    def pronounce(self, text: str, language: str, phonetic: str = '') -> tuple[str, str]: ...
 
 
 class Translator:
@@ -48,7 +48,5 @@ class Translator:
         if language not in LANGUAGES:
             raise TranslationError('지원하지 않는 언어입니다.')
         translated, phonetic = self._provider.translate(text, language.code)
-        if phonetic:
-            return Translation(translated, phonetic, '번역 서비스에서 제공한 로마자 발음입니다.')
-        pronunciation, note = self._pronunciation.pronounce(translated, language.code)
+        pronunciation, note = self._pronunciation.pronounce(translated, language.code, phonetic)
         return Translation(translated, pronunciation, note)

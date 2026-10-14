@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
 )
 from .core import LANGUAGES, TranslationError
+from . import __version__
 
 
 class Worker(QObject):
@@ -32,7 +33,7 @@ class TranslatorWindow(QMainWindow):
         super().__init__()
         self._translator = translator
         self._thread = None
-        self.setWindowTitle('말모아 · 한국어 번역기')
+        self.setWindowTitle(f'말모아 · 한국어 번역기 v{__version__}')
         self.resize(760, 760)
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -66,12 +67,12 @@ class TranslatorWindow(QMainWindow):
         self.copy_button = QPushButton('번역 복사')
         self.copy_button.clicked.connect(lambda: QApplication.clipboard().setText(self.output.toPlainText()))
         layout.addWidget(self.copy_button)
-        layout.addWidget(QLabel('발음 · 로마자 / IPA'))
+        layout.addWidget(QLabel('발음 · 한글로 읽기'))
         self.pronunciation = QPlainTextEdit()
         self.pronunciation.setReadOnly(True)
         self.pronunciation.setAccessibleName('발음')
         layout.addWidget(self.pronunciation)
-        self.note = QLabel('발음은 로마자 또는 IPA로 표시됩니다. 한글 발음 표기는 제공하지 않습니다.')
+        self.note = QLabel('아래에 한글로 읽을 수 있는 근사 발음이 표시됩니다.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         self.setCentralWidget(container)

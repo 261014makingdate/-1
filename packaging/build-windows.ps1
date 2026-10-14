@@ -7,7 +7,7 @@ if (-not (Test-Path $python)) {
 }
 & $python -m pip install -r packaging/requirements-windows.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
-& $python -m PyInstaller --noconfirm --clean --onefile --windowed --name Malmoa --collect-all pykakasi --collect-all eng_to_ipa desktop.py
+& $python -m PyInstaller --noconfirm --clean --onefile --windowed --name Malmoa --collect-all pykakasi --collect-all eng_to_ipa --collect-data pythainlp --collect-data laonlp --hidden-import pythainlp.tokenize.newmm --hidden-import pythainlp.transliterate.royin desktop.py
 if ($LASTEXITCODE -ne 0) { throw 'Windows executable build failed.' }
 $exe = Join-Path (Get-Location) 'dist\Malmoa.exe'
 $report = Join-Path (Get-Location) 'dist\self-test.json'

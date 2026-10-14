@@ -6,13 +6,10 @@ from urllib.parse import urlparse
 from urllib.request import getproxies, proxy_bypass
 
 import certifi
-import eng_to_ipa
 import httpx
-from pypinyin import lazy_pinyin, Style
-from pykakasi import kakasi
-from unidecode import unidecode
 
 from .core import TranslationError, TranslationProvider
+from . import __version__
 
 
 def _windows_connection_options(host: str) -> dict:
@@ -127,7 +124,7 @@ class GoogleWebProvider:
                     params=params,
                     timeout=httpx.Timeout(12, connect=6),
                     follow_redirects=True,
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Malmoa/0.1.3',
+                    headers={'User-Agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Malmoa/{__version__}',
                              'Accept': 'text/html' if webpage else 'application/json'},
                     **options,
                 )
@@ -148,20 +145,6 @@ class GoogleWebProvider:
                 failures.append(self._failure(error))
         messages = list(dict.fromkeys(failures))
         raise TranslationError(' / '.join(messages)) from last_error
-
-
-class RomanizationProvider:
-    def __init__(self):
-        self._japanese = kakasi()
-
-    def pronounce(self, text: str, language: str) -> tuple[str, str]:
-        if language == 'zh-CN':
-            return ' '.join(lazy_pinyin(text, style=Style.TONE)), '중국어 병음입니다. 문맥에 따라 읽기가 달라질 수 있습니다.'
-        if language == 'ja':
-            return ' '.join(item['hepburn'] for item in self._japanese.convert(text)), '일본어 로마자 표기입니다. 고유명사 읽기는 다를 수 있습니다.'
-        if language == 'en':
-            return eng_to_ipa.convert(text), '영어 국제음성기호(IPA)입니다. * 표시는 사전에 없는 단어입니다.'
-        return unidecode(text), '간이 로마자 표기입니다. 실제 발음·성조와 차이가 있을 수 있습니다.'
 
 
 class MyMemoryProvider:
