@@ -59,7 +59,7 @@ def run(report_path: str) -> int:
 def run_live(report_path: str) -> int:
     """Exercise all six languages through the packaged network adapter."""
     import re
-    from .providers import GoogleWebProvider
+    from .providers import GoogleWebProvider, MyMemoryProvider, FallbackTranslationProvider
     translator = Translator(FallbackTranslationProvider([GoogleWebProvider(), MyMemoryProvider()]), RomanizationProvider())
     scripts = [r'[\u4e00-\u9fff]', r'[\u3040-\u30ff]', r'[A-Za-z]',
                r'[\u0e00-\u0e7f]', r'[\u0e80-\u0eff]', r'[\u0400-\u04ff]']

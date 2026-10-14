@@ -157,3 +157,15 @@ def test_mymemory_quota_is_not_translation(monkeypatch):
     monkeypatch.setattr(httpx, 'get', lambda *a, **k: response)
     with pytest.raises(TranslationError, match='MYMEMORY LIMIT'):
         MyMemoryProvider().translate('안녕', 'en')
+
+
+def test_live_diagnostic_assembles_providers(monkeypatch, tmp_path):
+    import json
+    from translator.diagnostics import run_live
+    samples = {'zh-CN': '你好', 'ja': 'こんにちは', 'en': 'hello', 'th': 'สวัสดี', 'lo': 'ສະບາຍດີ', 'ru': 'Привет'}
+    monkeypatch.setattr(GoogleWebProvider, 'translate', lambda self, text, target: (samples[target], 'phonetic'))
+    report = tmp_path / 'live.json'
+    assert run_live(str(report)) == 0
+    data = json.loads(report.read_text(encoding='utf-8'))
+    assert data['status'] == 'passed'
+    assert len(data['checks']) == 6
