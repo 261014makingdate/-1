@@ -50,11 +50,11 @@ Windows에서는 `.venv\Scripts\python -m pytest -q`를 사용합니다.
 
 ## Windows 실행 파일
 
-GitHub 배포 파일은 [Releases](https://github.com/261014makingdate/-1/releases)에서 찾을 수 있습니다. 릴리스가 게시되면 Assets에서 `Malmoa.exe` 또는 `Malmoa-Windows-x64.zip`을 다운로드하세요.
+GitHub 배포 파일은 [v0.1.0 릴리스](https://github.com/261014makingdate/-1/releases/tag/v0.1.0)에서 찾을 수 있습니다. [Malmoa.exe 다운로드](https://github.com/261014makingdate/-1/releases/download/v0.1.0/Malmoa.exe) 또는 [ZIP 다운로드](https://github.com/261014makingdate/-1/releases/download/v0.1.0/Malmoa-Windows-x64.zip)를 선택하세요.
 
 `dist/Malmoa.exe`를 Windows 10/11 64비트 PC에 복사하고 더블 클릭하세요. Python을 별도로 설치할 필요가 없습니다. 단일 실행 파일이며 번역에는 인터넷 연결이 필요합니다. 최초 실행 시 내부 파일을 임시 폴더에 풀기 때문에 잠시 걸릴 수 있습니다.
 
-Windows용 Python 3.12.10, Qt 6.8.3, PyInstaller 6.22.3으로 빌드했습니다. Windows 바이너리 형식(PE32+, x64, GUI)을 확인했고 Wine 10에서 테스트 13개 및 생성된 실행 파일의 오프라인 진단이 통과했습니다. 진단은 화면, 작업 스레드, 번역 결과 표시와 6개 언어 발음 데이터 포함 여부를 확인합니다. 실제 Windows PC에서의 실행과 실시간 번역은 아직 검증하지 않았습니다. 클라우드의 번역 서버 요청은 프록시 403으로 차단됐습니다.
+Windows용 Python 3.12.10, Qt 6.8.3, PyInstaller 6.22.3으로 빌드했습니다. Windows 바이너리 형식(PE32+, x64, GUI)을 확인했고 Wine 10에서 테스트 13개 및 생성된 실행 파일의 오프라인 진단이 통과했습니다. 진단은 화면, 작업 스레드, 번역 결과 표시와 6개 언어 발음 데이터 포함 여부를 확인합니다. GitHub 배포 빌드는 [Windows Actions 실행](https://github.com/261014makingdate/-1/actions/runs/38502152350)에서도 테스트와 실행 파일의 오프라인 진단을 통과했습니다. 실시간 번역은 아직 검증하지 않았습니다. 개발 클라우드의 번역 서버 요청은 프록시 403으로 차단됐습니다.
 
 검사 결과는 `dist/self-test.json`, 파일 해시는 `dist/Malmoa.exe.sha256`에 있습니다. 실행 파일의 오프라인 진단은 다음처럼 실행할 수 있습니다.
 
