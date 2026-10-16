@@ -108,3 +108,37 @@ jobs:
         run: |
           gh release create android-v0.3.0 dist/Malmoa-Android.apk dist/Malmoa-Android.apk.sha256 dist/Malmoa-Android.zip --target "$GITHUB_SHA" --title "말모아 Android 0.3.0 (테스트)" --notes-file android/RELEASE_NOTES.md --prerelease --draft
           gh release edit android-v0.3.0 --draft=false
+
+  diagnostics:
+    needs: [build, release]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Preserve failure logs for Git-based troubleshooting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p /tmp/android-diagnostics
+          cd /tmp/android-diagnostics
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" > jobs.json
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          for job in json.loads(Path('jobs.json').read_text())['jobs']:
+              if job['conclusion'] == 'failure':
+                  with Path(f"job-{job['id']}.log").open('wb') as log:
+                      subprocess.run(['gh', 'api', f"repos/{__import__('os').environ['GITHUB_REPOSITORY']}/actions/jobs/{job['id']}/logs"], stdout=log, check=True)
+          PY
+          gh auth setup-git --hostname github.com
+          git init -b "diagnostics/android-$GITHUB_RUN_ID"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add jobs.json job-*.log
+          git commit -m 'Preserve Android workflow failure diagnostics'
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git push origin "HEAD:refs/heads/diagnostics/android-$GITHUB_RUN_ID"
