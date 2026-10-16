@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+def sharedPython = layout.buildDirectory.dir('generated/sharedPython')
+tasks.register('syncSharedPython', Sync) {
+    from('../../translator') {
+        include '__init__.py', 'core.py', 'providers.py', 'pronunciation.py'
+        into 'translator'
+    }
+    into sharedPython
+}
+android {
+    namespace 'kr.malmoa.translator'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'kr.malmoa.translator'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '0.3.0'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+dependencies {
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
+chaquopy {
+    defaultConfig {
+        version '3.12'
+        pip {
+            options '--no-index', '--find-links', file('../wheelhouse').absolutePath
+            install '-r', '../requirements.txt'
+        }
+    }
+    sourceSets { main { srcDir sharedPython } }
+}
+tasks.configureEach {
+    if (name.startsWith('merge') && name.endsWith('PythonSources')) {
+        dependsOn 'syncSharedPython'
+    }
+}

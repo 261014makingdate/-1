@@ -1,0 +1,5 @@
+<resources>
+    <item name="source_input" type="id" />
+    <item name="target_language" type="id" />
+    <item name="translate_button" type="id" />
+</resources>

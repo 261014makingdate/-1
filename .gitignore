@@ -6,3 +6,10 @@ dist/
 *.spec
 
 .venv-windows/
+android/.gradle/
+android/**/build/
+android/local.properties
+android/wheelhouse/
+android/.venv-build/
+*.jks
+*.keystore

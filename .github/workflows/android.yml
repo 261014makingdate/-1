@@ -1,0 +1,110 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-apk-delivery]
+    paths: ['android/**', 'translator/**', 'tests/**', '.github/workflows/android.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare portable Python packages
+        run: python android/prepare_wheels.py
+      - name: Install headless Qt libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libegl1 libopengl0
+      - name: Test with Android dependencies
+        run: |
+          python -m pip install --no-index --find-links android/wheelhouse -r android/requirements.txt
+          python -m pip install -r requirements.txt pytest==9.1.1
+          QT_QPA_PLATFORM=offscreen python -m pytest -q
+      - name: Build APK and check Android lint
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest lintDebug --no-daemon
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test embedded engine and screen on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          disable-animations: true
+          working-directory: android
+          script: ./gradlew connectedDebugAndroidTest --no-daemon
+      - name: Prepare downloadable files
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Malmoa-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose dist/Malmoa-Android.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 dist/Malmoa-Android.apk
+          cd dist
+          sha256sum Malmoa-Android.apk > Malmoa-Android.apk.sha256
+          cp ../android/INSTALL.txt 설치안내.txt
+          python -c "import zipfile; z=zipfile.ZipFile('Malmoa-Android.zip','w',zipfile.ZIP_DEFLATED); [z.write(p) for p in ['Malmoa-Android.apk','Malmoa-Android.apk.sha256','설치안내.txt']]; z.close()"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Malmoa-Android
+          path: |
+            dist/Malmoa-Android.apk
+            dist/Malmoa-Android.apk.sha256
+            dist/Malmoa-Android.zip
+          if-no-files-found: error
+      - name: Preserve Android check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-check-reports
+          path: android/app/build/reports/
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Malmoa-Android
+          path: dist
+      - name: Verify downloaded APK checksum
+        working-directory: dist
+        run: sha256sum -c Malmoa-Android.apk.sha256
+      - name: Publish tested APK and KakaoTalk ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create android-v0.3.0 dist/Malmoa-Android.apk dist/Malmoa-Android.apk.sha256 dist/Malmoa-Android.zip --target "$GITHUB_SHA" --title "말모아 Android 0.3.0 (테스트)" --notes-file android/RELEASE_NOTES.md --prerelease --draft
+          gh release edit android-v0.3.0 --draft=false
